@@ -1,16 +1,18 @@
 # Task Management Service
 
-## Prerequisites
-- .NET 8 SDK
-- Docker and Docker Compose (optional, for containerized deployment)
-- PostgreSQL (if running without Docker)
+Реализация выполнена в сборке docker-compose
 
-## Setup and Running
+старт: docker-compose up --build
+выключение: docker-compose down -v (остановка и удаление контейнеров вместе с volumes)
 
-### Without Docker
-1. Ensure PostgreSQL is running and create a database named taskmanagement
-2. Update appsettings.json with your PostgreSQL connection string if needed
-3. Run the API:
-`bash
-cd TaskManagement.Api
-dotnet run
+TODO:
+
+1) Причесать файлы appsettings и launch.json для разных режимов запуска.
+2) Дополнить блоки environments в docker-compose доп переменными
+3) Переместить все модели, репозитории, паблишеры в infrastructure проект
+4) Добавить в docker-compose network
+
+
+# Задание 2
+Приведено в файле task2.sql
+Выполнено для Postgresql
