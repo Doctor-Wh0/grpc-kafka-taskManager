@@ -1,0 +1,6 @@
+@TaskManagement.GrpcService_HostAddress = http://localhost:5091
+
+GET {{TaskManagement.GrpcService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option csharp_namespace = "TaskManagement.Proto";
+
+import "google/protobuf/timestamp.proto";
+
+service TaskNoteEventGrpc {
+  rpc OnTaskCreated (TaskNoteEventRequest) returns (EmptyResponse);
+  rpc OnTaskUpdated (TaskNoteEventRequest) returns (EmptyResponse);
+  rpc OnTaskDeleted (TaskNoteDeletedRequest) returns (EmptyResponse);
+}
+
+message TaskNoteEventRequest {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  TaskNoteStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message TaskNoteDeletedRequest {
+  string id = 1;
+}
+
+message EmptyResponse {}
+
+enum TaskNoteStatus {
+  NEW = 0;
+  IN_PROGRESS = 1;
+  COMPLETED = 2;
+}
