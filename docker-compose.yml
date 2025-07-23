@@ -6,15 +6,14 @@ services:
       POSTGRES_DB: taskmanagement
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
 
   kafka:
     image: bitnami/kafka:latest
     ports:
-    - '9092:9092'
     - '9094:9094'
     environment:
       - KAFKA_CFG_NODE_ID=0
@@ -29,6 +28,8 @@ services:
       - KAFKA_KRAFT_CLUSTER_ID=r4zt_wrqTRuT7W2NJsB_GA
     volumes:
       - kafka_data:/bitnami/kafka
+    networks:
+      - app-network
 
   api:
     build:
@@ -42,17 +43,19 @@ services:
       - grpc
     environment:
       - ConnectionStrings__DefaultConnection=Host=db;Database=taskmanagement;Username=postgres;Password=postgres
-      - GRPC_SERVER_ADDRESS=grpc:5001
+      - GRPC_SERVER_ADDRESS=http://grpc:5001
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - app-network
 
   grpc:
     build:
       context: .
       dockerfile: ./TaskManagement.GrpcService/Dockerfile
-    ports:
-      - "5001:5001"
     environment:
       - ASPNETCORE_URLS=http://+:5001
+    networks:
+      - app-network
 
   kafka-consumer:
     build:
@@ -62,7 +65,13 @@ services:
       - kafka
     environment:
       KAFKA_BROKER: kafka:9092
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
   kafka_data:
+
+networks:
+  app-network:
+    driver: bridge

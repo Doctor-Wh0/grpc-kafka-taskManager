@@ -7,11 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\task.proto" GrpcServices="Server" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+    <ProjectReference Include="..\TaskManagement.Core\TaskManagement.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\TaskManagement.Core\Protos\task.proto" GrpcServices="Server" />
   </ItemGroup>
 
 </Project>

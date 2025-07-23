@@ -21,11 +21,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TaskManagement.Core\TaskManagement.Core.csproj" />
-    <!-- <ProjectReference Include="..\TaskManagement.Infrastructure\TaskManagement.Infrastructure.csproj" /> -->
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\task.proto" GrpcServices="Client" />
+    <Protobuf Include="..\TaskManagement.Core\Protos\task.proto" GrpcServices="Client" />
   </ItemGroup>
 
 </Project>

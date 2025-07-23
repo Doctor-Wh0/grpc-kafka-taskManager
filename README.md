@@ -5,13 +5,10 @@
 старт: docker-compose up --build
 выключение: docker-compose down -v (остановка и удаление контейнеров вместе с volumes)
 
-TODO:
+1) Структуру папок можно организовать разными путями: Infrastructure, Contracts, Data...
+ В данном случае, текущий - самый компактный. Всё зависит от размеров проекта.
 
-1) Причесать файлы appsettings и launch.json для разных режимов запуска.
-2) Дополнить блоки environments в docker-compose доп переменными
-3) Переместить все модели, репозитории, паблишеры в infrastructure проект
-4) Добавить в docker-compose network
-
+2) Запуск Swagger с АПИ по адресу localhost:5030
 
 # Задание 2
 Приведено в файле task2.sql
