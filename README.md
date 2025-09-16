@@ -8,7 +8,7 @@
 1) Структуру папок можно организовать разными путями: Infrastructure, Contracts, Data...
  В данном случае, текущий - самый компактный. Всё зависит от размеров проекта.
 
-2) Запуск Swagger с АПИ по адресу [localhost:5030](http://localhost:5030/swagger/index.html)
+2) Запуск Swagger с АПИ по адресу http://localhost:5030/swagger/index.html
 
 TODO:
 1) Написать цветовой вывод сообщений Update - жёлтый, Delete - красный, Create - зелёный
