@@ -10,6 +10,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: bitnami/kafka:latest
@@ -45,6 +50,11 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Database=taskmanagement;Username=postgres;Password=postgres
       - GRPC_SERVER_ADDRESS=http://grpc:5001
       - KAFKA_BROKER=kafka:9092
+      - Jwt__Key=There_is_sense_to_keep_the_key_in_Core_Secrets
+      - Jwt__Issuer=https://localhost:5030
+      - Jwt__Audience=https://localhost:5030
+      - Jwt__AccessTokenExpiryMinutes=15
+      - Jwt__RefreshTokenExpiryDays=7
     networks:
       - app-network
 

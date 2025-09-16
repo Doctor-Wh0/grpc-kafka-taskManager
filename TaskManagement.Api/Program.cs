@@ -1,5 +1,9 @@
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TaskManagement.Core.Interfaces;
 using TaskManagement.Infrastructure.Data;
 using TaskManagement.Infrastructure.Kafka;
@@ -17,7 +21,45 @@ builder.Services.AddDbContext<TaskNoteDbContext>(options =>
 
 builder.Services.AddScoped<ITaskNoteRepository, TaskNoteRepository>();
 
-var kafkaConnection = Environment.GetEnvironmentVariable("KAFKA_BROKER") ?? builder.Configuration["KafkaConnection"];
+builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
+{
+    // Рекомендации по паролям
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = false;  // Для простоты, но в прод — true
+    options.Password.RequireUppercase = true;
+    options.Password.RequireLowercase = true;
+
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.SignIn.RequireConfirmedEmail = false;  // Для теста; в прод — true
+})
+.AddEntityFrameworkStores<TaskNoteDbContext>()
+.AddDefaultTokenProviders();  // Для email confirm, etc.
+
+// Добавляем JWT Authentication
+var jwtSettings = builder.Configuration.GetSection("Jwt");  // Добавь в appsettings.json ниже
+var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            ValidAudience = jwtSettings["Audience"],
+            IssuerSigningKey = key,
+            ClockSkew = TimeSpan.FromMinutes(1)  // Минимальный skew
+        };
+    });
+
+builder.Services.AddAuthorization();  // Для ролей/политик
+
+var kafkaConnection = Environment.GetEnvironmentVariable("KAFKA_BROKER") ?? builder.Configuration["KafkaConnection"]!;
 builder.Services.AddSingleton<ITaskNoteEventPublisher>(sp =>
     new KafkaTaskNoteEventPublisher(
         kafkaConnection,
@@ -26,7 +68,7 @@ builder.Services.AddSingleton<ITaskNoteEventPublisher>(sp =>
 
 builder.Services.AddScoped<TaskNoteEventGrpc.TaskNoteEventGrpcClient>(sp =>
 {
-    var grpcServerAddress = Environment.GetEnvironmentVariable("GRPC_SERVER_ADDRESS")?? builder.Configuration["GRPCConnection"];
+    var grpcServerAddress = Environment.GetEnvironmentVariable("GRPC_SERVER_ADDRESS")?? builder.Configuration["GRPCConnection"]!;
     var handler = new HttpClientHandler();
     handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
     var channel = GrpcChannel.ForAddress(grpcServerAddress, new GrpcChannelOptions { HttpHandler = handler });
@@ -35,14 +77,32 @@ builder.Services.AddScoped<TaskNoteEventGrpc.TaskNoteEventGrpcClient>(sp =>
 
 var app = builder.Build();
 
+// Применение миграций
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<TaskNoteDbContext>();
+    try
+    {
+        dbContext.Database.Migrate(); // Применяет все миграции
+        Console.WriteLine("Database migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Migration failed: {ex.Message}");
+        throw; // Для dev; в prod можно просто логировать
+    }
+}
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    //c.SwaggerEndpoint("/swagger/v1/swagger.json", "Task Management API V1");
-    c.RoutePrefix = string.Empty;
+    c.SwaggerEndpoint("http://localhost:5030/swagger/v1/swagger.json", "Task Management API V1");
+    c.RoutePrefix = "swagger";
 });
 
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
