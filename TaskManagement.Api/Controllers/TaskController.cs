@@ -1,15 +1,15 @@
-using Grpc.Net.Client;
 using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Core.Interfaces;
 using TaskManagement.Core.Models;
 using Google.Protobuf.WellKnownTypes;
-using System.Data;
 using TaskManagement.Proto;
+using Microsoft.AspNetCore.Authorization;
 
 namespace TaskManagement.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TasksController : ControllerBase
     {
         private readonly ITaskNoteRepository _taskRepository;
@@ -34,6 +34,9 @@ namespace TaskManagement.Api.Controllers
                 Title = taskDto.Title,
                 Description = taskDto.Description,
                 Status = taskDto.Status,
+                Priority = taskDto.Priority,
+                Implementer = taskDto.Implementer,
+                Author = taskDto.Author,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -44,8 +47,11 @@ namespace TaskManagement.Api.Controllers
             {
                 Id = createdTask.Id.ToString(),
                 Title = createdTask.Title,
-                Description = createdTask.Description,
+                 Description = createdTask.Description,
+                Author = createdTask.Author,
+                Implementer = createdTask.Implementer,
                 Status = (Proto.TaskNoteStatus)createdTask.Status,
+                Priority = (Proto.TaskNotePriority) createdTask.Priority,
                 CreatedAt = Timestamp.FromDateTime(DateTime.UtcNow),
                 UpdatedAt = Timestamp.FromDateTime(DateTime.UtcNow)
             });

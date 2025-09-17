@@ -17,14 +17,12 @@ using TaskManagement.Infrastructure.Data;  // Для RefreshToken
 public class AuthController : ControllerBase
 {
     private readonly UserManager<IdentityUser> _userManager;
-    private readonly SignInManager<IdentityUser> _signInManager;
     private readonly TaskNoteDbContext _context;
     private readonly IConfiguration _config;
 
-    public AuthController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, TaskNoteDbContext context, IConfiguration config)
+    public AuthController(UserManager<IdentityUser> userManager, TaskNoteDbContext context, IConfiguration config)
     {
         _userManager = userManager;
-        _signInManager = signInManager;
         _context = context;
         _config = config;
     }
@@ -47,50 +45,57 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest model)
     {
-        var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, isPersistent: false, lockoutOnFailure: false);
-
-        if (result.Succeeded)
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
         {
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            var accessToken = await GenerateAccessTokenAsync(user!);
-            var refreshToken = GenerateRefreshToken();
-
-            // Сохрани refresh в БД
-            var refreshEntity = new RefreshToken
-            {
-                Token = refreshToken,
-                JwtId = accessToken.Claims.First(c => c.Type == JwtRegisteredClaimNames.Jti).Value,
-                UserId = user!.Id,
-                ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpiryDays"]!)),
-                Device = Request.Headers["User-Agent"].ToString(),  // Простой device
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? ""
-            };
-            _context.RefreshTokens.Add(refreshEntity);
-            await _context.SaveChangesAsync();
-
-            // Установи cookies (HttpOnly для безопасности)
-            Response.Cookies.Append("accessToken", new JwtSecurityTokenHandler().WriteToken(accessToken),
-                new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = true,  // true в prod (HTTPS)
-                    SameSite = SameSiteMode.Strict,
-                    Expires = DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:AccessTokenExpiryMinutes"]!))
-                });
-
-            Response.Cookies.Append("refreshToken", refreshToken,
-                new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = true,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpiryDays"]!))
-                });
-
-            return Ok(new { Message = "Login successful" });  // Токены в cookies
+            return Unauthorized("Invalid login");
         }
 
-        return Unauthorized("Invalid login");
+        var accessToken = await GenerateAccessTokenAsync(user!);
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(accessToken);  // ← СТРОКА!
+        var refreshToken = GenerateRefreshToken();
+
+        // Сохрани refresh в БД
+        var refreshEntity = new RefreshToken
+        {
+            Token = refreshToken,
+            JwtId = accessToken.Claims.First(c => c.Type == JwtRegisteredClaimNames.Jti).Value,
+            UserId = user!.Id,
+            ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpiryDays"]!)),
+            Device = Request.Headers["User-Agent"].ToString(),
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? ""
+        };
+        _context.RefreshTokens.Add(refreshEntity);
+        await _context.SaveChangesAsync();
+
+        // Cookies (Secure=false для dev)
+        Response.Cookies.Append("accessToken", tokenString,  // ← tokenString, а не объект!
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false,  // ← false для HTTP dev!
+                SameSite = SameSiteMode.Lax,  // ← Lax вместо Strict
+                Expires = DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:AccessTokenExpiryMinutes"]!))
+            });
+
+        Response.Cookies.Append("refreshToken", refreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false,  // ← false для dev
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpiryDays"]!))
+            });
+
+        // JSON с СТРОКОЙ токена
+        return Ok(new
+        {
+            Message = "Login successful",
+            AccessToken = tokenString,  // ← СТРОКА, а не объект!
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = int.Parse(_config["Jwt:AccessTokenExpiryMinutes"]!) * 60
+        });
     }
 
     [HttpPost("refresh")]
@@ -110,15 +115,16 @@ public class AuthController : ControllerBase
         if (user == null)
             return Unauthorized("User not found");
 
-        // Ротация: отметь старый как used, создай новый
+        // Ротация
         refreshEntity.IsUsed = true;
-        refreshEntity.ReplacedByToken = GenerateRefreshToken();  // Новый для ротации
+        var newRefreshToken = GenerateRefreshToken();
+        refreshEntity.ReplacedByToken = newRefreshToken;
         await _context.SaveChangesAsync();
 
         var newAccessToken = await GenerateAccessTokenAsync(user);
-        var newRefreshToken = refreshEntity.ReplacedByToken;
+        var newTokenString = new JwtSecurityTokenHandler().WriteToken(newAccessToken);  // ← СТРОКА!
 
-        // Сохрани новый refresh в БД (аналогично login)
+        // Сохрани новый refresh
         var newRefreshEntity = new RefreshToken
         {
             Token = newRefreshToken,
@@ -132,10 +138,32 @@ public class AuthController : ControllerBase
         await _context.SaveChangesAsync();
 
         // Обнови cookies
-        Response.Cookies.Append("accessToken", new JwtSecurityTokenHandler().WriteToken(newAccessToken));
-        Response.Cookies.Append("refreshToken", newRefreshToken);
+        Response.Cookies.Append("accessToken", newTokenString,  // ← СТРОКА!
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false,  // dev
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:AccessTokenExpiryMinutes"]!))
+            });
 
-        return Ok(new { Message = "Token refreshed" });
+        Response.Cookies.Append("refreshToken", newRefreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false,
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpiryDays"]!))
+            });
+
+        return Ok(new
+        {
+            Message = "Token refreshed",
+            AccessToken = newTokenString,  // ← СТРОКА!
+            RefreshToken = newRefreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = int.Parse(_config["Jwt:AccessTokenExpiryMinutes"]!) * 60
+        });
     }
 
     [HttpPost("logout")]

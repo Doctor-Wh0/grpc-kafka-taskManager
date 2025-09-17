@@ -51,8 +51,8 @@ services:
       - GRPC_SERVER_ADDRESS=http://grpc:5001
       - KAFKA_BROKER=kafka:9092
       - Jwt__Key=There_is_sense_to_keep_the_key_in_Core_Secrets
-      - Jwt__Issuer=https://localhost:5030
-      - Jwt__Audience=https://localhost:5030
+      - Jwt__Issuer=http://localhost:5030
+      - Jwt__Audience=http://localhost:5030
       - Jwt__AccessTokenExpiryMinutes=15
       - Jwt__RefreshTokenExpiryDays=7
     networks:

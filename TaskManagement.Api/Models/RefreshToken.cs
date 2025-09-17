@@ -14,7 +14,7 @@ public class RefreshToken
         public string ReplacedByToken { get; set; } = string.Empty;  // Для ротации
         public string UserId { get; set; } = string.Empty;  // IdentityUser.Id
 
-        [MaxLength(50)]
+        [MaxLength(255)]
         public string Device { get; set; } = string.Empty;  // "Browser" или "Mobile"
         [MaxLength(50)]
         public string IpAddress { get; set; } = string.Empty;  // Для дополнительной проверки

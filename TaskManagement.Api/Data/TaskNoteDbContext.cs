@@ -10,7 +10,7 @@ namespace TaskManagement.Infrastructure.Data
     {
         public TaskNoteDbContext(DbContextOptions<TaskNoteDbContext> options) : base(options)
         {
-            // Database.EnsureCreated();  // Убери это — используй миграции для Identity!
+            // Database.EnsureCreated();
         }
 
         public DbSet<TaskNote> Tasks { get; set; }
@@ -18,20 +18,26 @@ namespace TaskManagement.Infrastructure.Data
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
-            base.OnModelCreating(builder);  // Обязательно для Identity
+            base.OnModelCreating(builder);
 
-            builder.Entity<RefreshToken>(entity =>
-            {
-                entity.HasKey(rt => rt.Id);
-                entity.HasIndex(rt => rt.Token).IsUnique();  // Быстрый поиск
-                entity.HasIndex(rt => new { rt.UserId, rt.IsRevoked, rt.IsUsed });
-            });
+            builder.Entity<TaskNote>()
+                .HasOne(t => t.Parent)
+                .WithMany(t => t.Children)
+                .HasForeignKey(t => t.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);  // Не удалять родителя при удалении ребёнка
 
-            //builder.Entity<TaskNote>(entity =>
-            //{
-            //    entity.HasKey(e => e.Id);
-            //    // ...
-            //});
+            builder.Entity<TaskNote>()
+                .HasMany(t => t.RelatedTasks)
+                .WithMany()  // Симметрично
+                .UsingEntity<Dictionary<string, object>>(
+                    "TaskNoteRelatedTasks",  // Связующая таблица
+                    j => j.HasOne<TaskNote>().WithMany().HasForeignKey("RelatedTaskId"),
+                    j => j.HasOne<TaskNote>().WithMany().HasForeignKey("TaskNoteId"),
+                    j =>
+                    {
+                        j.HasKey("TaskNoteId", "RelatedTaskId");  // Composite PK
+                        j.ToTable("TaskNoteRelatedTasks");  // Имя таблицы
+                    });
         }
     }
 }
